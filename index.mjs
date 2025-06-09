@@ -52,7 +52,7 @@ async function queryDocument({ documentId }) {
     const document = await ragie.documents.get({
         documentId
     });
-    console.log(document);
+    return document;
 }
 
 async function retrieveChunks({ query, scope }) {
@@ -65,7 +65,7 @@ async function retrieveChunks({ query, scope }) {
         query,
         ...(filter && { filter })
     });
-    console.log(response);
+    return response;
 }
 
 async function generate({ query, scope }) {
@@ -79,11 +79,7 @@ async function generate({ query, scope }) {
         process.exit(1);
     }
     try {
-        const filter = scope ? { scope } : undefined;
-        const response = await ragie.retrievals.retrieve({
-            query,
-            ...(filter && { filter })
-        });
+        const response = await retrieveChunks({ query, scope });
 
         const chunkText = (response.scoredChunks || response.scored_chunks || []).map((chunk) => chunk.text);
         const systemPrompt = `These are very important to follow:
@@ -119,7 +115,7 @@ END SYSTEM INSTRUCTIONS`;
                 model: "gpt-4o",
             });
 
-            console.log(chatCompletion.choices[0].message.content);
+            return chatCompletion.choices[0].message.content;
         } catch (error) {
             console.error("Failed to get completion from OpenAI:", error);
             process.exit(1);
@@ -132,11 +128,14 @@ END SYSTEM INSTRUCTIONS`;
 
 (async () => {
     if (operation === "query-document") {
-        await queryDocument(params);
+        const response = await queryDocument(params);
+        console.log(response);
     } else if (operation === "retrieve-chunks") {
-        await retrieveChunks(params);
+        const response = await retrieveChunks(params);
+        console.log(response);
     } else if (operation === "generate") {
-        await generate(params);
+        const response = await generate(params);
+        console.log(response);
     } else {
         console.error(`Unknown operation: ${operation}`);
         process.exit(1);
