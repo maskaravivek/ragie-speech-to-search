@@ -38,26 +38,24 @@ const params = parseArgs(rawArgs);
 
 if (!operation) {
     console.log("Usage:");
-    console.log("  node index.js retrieve-chunks --query=<query> [--scope=<scope>]");
-    console.log("  node index.js generate --query=<query> [--scope=<scope>]");
+    console.log("  node index.js retrieve-chunks --query=<query>");
+    console.log("  node index.js generate --query=<query>");
     process.exit(1);
 }
 
-async function retrieveChunks({ query, scope }) {
+async function retrieveChunks({ query }) {
     if (!query) {
         console.error("Error: --query is required for retrieve-chunks operation.");
         process.exit(1);
     }
-    const filter = scope ? { scope } : undefined;
     const response = await ragie.retrievals.retrieve({
         partition: "google-drive-partition",
-        query,
-        ...(filter && { filter })
+        query
     });
     return response;
 }
 
-async function generate({ query, scope }) {
+async function generate({ query }) {
     const openAiApiKey = process.env.OPENAI_API_KEY;
     if (!openAiApiKey) {
         console.error("Error: OPENAI_API_KEY environment variable not set.");
@@ -68,7 +66,7 @@ async function generate({ query, scope }) {
         process.exit(1);
     }
     try {
-        const response = await retrieveChunks({ query, scope });
+        const response = await retrieveChunks({ query });
 
         const chunkText = (response.scoredChunks || response.scored_chunks || []).map((chunk) => chunk.text);
         const systemPrompt = `These are very important to follow:

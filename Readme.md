@@ -14,7 +14,7 @@ export RAGIE_API_KEY=<YOUR_RAGIE_API_KEY>
 ## Ingest documents
 
 ```
-ragie import files data/paul_graham_essay.txt
+ragie import files data/paul_graham_essay_drive.txt
 ```
 
 ## Install packages
@@ -26,5 +26,5 @@ npm install
 ## Generate LLM responses
 
 ```
- node index.mjs generate --query="What does Chamath think about Davos?"
+ node index.mjs generate --query="What is Paul telling us about Piazza San Marco"
 ```
