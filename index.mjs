@@ -1,127 +1,113 @@
 import { Ragie } from "ragie";
 import OpenAI from "openai";
 
-const apiKey = process.env.RAGIE_API_KEY;
+const RAGIE_API_KEY = process.env.RAGIE_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-if (!apiKey) {
-    console.error("Error: RAGIE_API_KEY environment variable not set.");
+if (!RAGIE_API_KEY) {
+    console.error("Error: Missing RAGIE_API_KEY environment variable.");
     process.exit(1);
 }
 
-const ragie = new Ragie({
-    auth: apiKey
-});
+const ragie = new Ragie({ auth: RAGIE_API_KEY });
 
-const [, , operation, ...rawArgs] = process.argv;
+const [, , operation, ...cliArgs] = process.argv;
 
 function parseArgs(args) {
-    const params = {};
-    for (let i = 0; i < args.length; i++) {
-        const eqMatch = args[i].match(/^--([^=]+)=(.*)$/);
-        if (eqMatch) {
-            params[eqMatch[1]] = eqMatch[2];
-        } else if (args[i].startsWith('--')) {
-            const key = args[i].slice(2);
-            const value = args[i + 1];
-            if (value && !value.startsWith('--')) {
-                params[key] = value;
-                i++;
-            } else {
-                params[key] = true;
-            }
+    return args.reduce((acc, arg, i) => {
+        const match = arg.match(/^--([^=]+)=(.*)$/);
+        if (match) {
+            acc[match[1]] = match[2];
+        } else if (arg.startsWith('--')) {
+            const key = arg.slice(2);
+            const next = args[i + 1];
+            acc[key] = next && !next.startsWith('--') ? next : true;
         }
-    }
-    return params;
+        return acc;
+    }, {});
 }
 
-const params = parseArgs(rawArgs);
+const params = parseArgs(cliArgs);
 
-if (!operation) {
-    console.log("Usage:");
-    console.log("  node index.js retrieve-chunks --query=<query>");
-    console.log("  node index.js generate --query=<query>");
-    process.exit(1);
+function buildSystemPrompt(chunkText) {
+    return `You are **Ragie AI**, a professional yet friendly assistant.
+
+Use the information below to help the user:
+===
+${chunkText.join('\n\n')}
+===
+
+Respond informally, directly, and concisely. No headings or greetings.  
+Use rich Markdown (e.g., **bold**, *italic*, lists) when helpful.  
+Use LaTeX with double $$ delimiters (e.g., $$x^2$$).  
+Structure answers into clear sections or bullet points if needed.  
+Don’t show raw item IDs or internal fields.  
+Avoid XML or other markup unless asked.
+
+If no results are found, let the user know clearly and suggest next steps.
+
+END SYSTEM INSTRUCTIONS`;
 }
 
 async function retrieveChunks({ query }) {
     if (!query) {
-        console.error("Error: --query is required for retrieve-chunks operation.");
+        console.error("Error: --query is required for retrieve-chunks.");
         process.exit(1);
     }
-    const response = await ragie.retrievals.retrieve({
+
+    return await ragie.retrievals.retrieve({
         partition: "speech_to_search",
-        query
+        query,
     });
-    return response;
 }
 
-async function generate({ query }) {
-    const openAiApiKey = process.env.OPENAI_API_KEY;
-    if (!openAiApiKey) {
-        console.error("Error: OPENAI_API_KEY environment variable not set.");
+async function generateResponse({ query }) {
+    if (!OPENAI_API_KEY) {
+        console.error("Error: Missing OPENAI_API_KEY environment variable.");
         process.exit(1);
     }
     if (!query) {
-        console.error("Error: --query is required for generate operation.");
+        console.error("Error: --query is required for generate.");
         process.exit(1);
     }
-    try {
-        const response = await retrieveChunks({ query });
 
-        const chunkText = (response.scoredChunks || response.scored_chunks || []).map((chunk) => chunk.text);
-        const systemPrompt = `These are very important to follow:
+    const response = await retrieveChunks({ query });
+    const chunkText = (response.scoredChunks || response.scored_chunks || []).map(c => c.text);
 
-You are "Ragie AI", a professional but friendly AI chatbot working as an assitant to the user.
+    const prompt = buildSystemPrompt(chunkText);
+    const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-Your current task is to help the user based on all of the information available to you shown below.
-Answer informally, directly, and concisely without a heading or greeting but include everything relevant.
-Use richtext Markdown when appropriate including **bold**, *italic*, paragraphs, and lists when helpful.
-If using LaTeX, use double $$ as delimiter instead of single $. Use $$...$$ instead of parentheses.
-Organize information into multiple sections or points when appropriate.
-Don't include raw item IDs or other raw fields from the source.
-Don't use XML or other markup unless requested by the user.
+    const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+            { role: "system", content: prompt },
+            { role: "user", content: query },
+        ],
+    });
 
-Here is all of the information available to answer the user:
-===
-${chunkText}
-===
-
-If the user asked for a search and there are no results, make sure to let the user know that you couldn't find anything,
-and what they might be able to do to find the information they need.
-
-END SYSTEM INSTRUCTIONS`;
-
-        const openai = new OpenAI({ apiKey: openAiApiKey });
-
-        try {
-            const chatCompletion = await openai.chat.completions.create({
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: query },
-                ],
-                model: "gpt-4o",
-            });
-
-            return chatCompletion.choices[0].message.content;
-        } catch (error) {
-            console.error("Failed to get completion from OpenAI:", error);
-            process.exit(1);
-        }
-    } catch (error) {
-        console.error("Failed to retrieve data from Ragie API:", error);
-        process.exit(1);
-    }
+    return completion.choices[0].message.content;
 }
 
+const actions = {
+    "retrieve-chunks": retrieveChunks,
+    "generate": generateResponse,
+};
+
 (async () => {
-    if (operation === "retrieve-chunks") {
-        const response = await retrieveChunks(params);
-        console.log(response);
-    } else if (operation === "generate") {
-        const response = await generate(params);
-        console.log(response);
-    } else {
-        console.error(`Unknown operation: ${operation}`);
+    const action = actions[operation];
+
+    if (!action) {
+        console.log("Usage:");
+        console.log("  node index.js retrieve-chunks --query=<query>");
+        console.log("  node index.js generate --query=<query>");
+        process.exit(1);
+    }
+
+    try {
+        const result = await action(params);
+        console.log(result);
+    } catch (err) {
+        console.error("An unexpected error occurred:", err);
         process.exit(1);
     }
 })();
