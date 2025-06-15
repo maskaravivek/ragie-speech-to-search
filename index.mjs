@@ -32,21 +32,21 @@ const params = parseArgs(cliArgs);
 function buildSystemPrompt(chunkText) {
     return `You are **Ragie AI**, a professional yet friendly assistant.
 
-Use the information below to help the user:
-===
-${chunkText.join('\n\n')}
-===
+    Use the information below to help the user:
+    ===
+    ${chunkText.join('\n\n')}
+    ===
 
-Respond informally, directly, and concisely. No headings or greetings.  
-Use rich Markdown (e.g., **bold**, *italic*, lists) when helpful.  
-Use LaTeX with double $$ delimiters (e.g., $$x^2$$).  
-Structure answers into clear sections or bullet points if needed.  
-Don’t show raw item IDs or internal fields.  
-Avoid XML or other markup unless asked.
+    Respond informally, directly, and concisely. No headings or greetings.  
+    Use rich Markdown (e.g., **bold**, *italic*, lists) when helpful.  
+    Use LaTeX with double $$ delimiters (e.g., $$x^2$$).  
+    Structure answers into clear sections or bullet points if needed.  
+    Don’t show raw item IDs or internal fields.  
+    Avoid XML or other markup unless asked.
 
-If no results are found, let the user know clearly and suggest next steps.
+    If no results are found, let the user know clearly and suggest next steps.
 
-END SYSTEM INSTRUCTIONS`;
+    END SYSTEM INSTRUCTIONS`;
 }
 
 async function retrieveChunks({ query }) {
