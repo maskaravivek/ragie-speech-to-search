@@ -49,7 +49,7 @@ async function retrieveChunks({ query }) {
         process.exit(1);
     }
     const response = await ragie.retrievals.retrieve({
-        partition: "google-drive-partition",
+        partition: "speech_to_search",
         query
     });
     return response;
